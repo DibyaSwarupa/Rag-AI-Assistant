@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="PDF RAG Assistant — ask anything about your PDF documents using AI-powered semantic search." />
+  <title>PDF RAG Assistant — Ask Your Documents</title>
+
+  <!-- Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;900&display=block" rel="stylesheet" />
+
+  <!-- Markdown + sanitizer -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+  <link rel="stylesheet" href="style.css?v=3" />
+</head>
+<body>
+
+<!-- Sidebar Backdrop for mobile -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+<div class="app">
+
+  <!-- ============================
+       SIDEBAR / DRAWER
+  ============================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-left">
+        <div class="brand-mark">✦</div>
+        <div class="brand-text">
+          <h1>PDF Assistant</h1>
+          <p>Semantic search · Gemini AI</p>
+        </div>
+      </div>
+      <!-- Mobile Close Button (visible only in mobile drawer) -->
+      <button class="sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="Close sidebar" onclick="closeSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M18 6L6 18"/><path d="M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Upload -->
+    <button class="upload-btn" id="uploadButton" type="button" aria-label="Upload a PDF document">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12"/><path d="M7 8l5-5 5 5"/>
+        <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+      </svg>
+      Upload document
+    </button>
+    <!-- Hidden File Input: visually hidden but not display:none so .click() works in all browsers -->
+    <input
+      type="file"
+      id="pdfInput"
+      accept=".pdf,application/pdf"
+      style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;"
+      aria-label="Select PDF file"
+    />
+
+
+    <!-- Document list -->
+    <div class="section-label">Your documents</div>
+    <div class="doc-list" id="docList">
+      <!-- populated by JS -->
+      <div class="doc-empty-hint" id="docEmptyHint">
+        No documents yet.<br/>Upload a PDF to start.
+      </div>
+    </div>
+
+    <!-- Sidebar footer -->
+    <div class="sidebar-footer">
+      <div class="ai-status">
+        <span class="pulse"></span>
+        AI online
+      </div>
+      <button class="icon-btn" id="clearAllBtn" aria-label="Clear all documents" title="Remove all documents">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        </svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================
+       MAIN PANEL
+  ============================= -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar" id="topbar">
+      <div class="topbar-left">
+        <!-- Mobile Sidebar Toggle -->
+        <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="Open documents and models" onclick="openSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+          </svg>
+          <span>Docs & AI</span>
+        </button>
+
+        <div class="topbar-doc" onclick="if(window.innerWidth<=768)openSidebar()" title="Click to view documents">
+          <div class="topbar-doc-icon" id="topbarDocIcon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 2v6h6"/>
+            </svg>
+          </div>
+          <div class="topbar-doc-info">
+            <div class="topbar-title" id="topbarTitle">No document selected</div>
+            <div class="topbar-sub"  id="topbarSub">Upload or select a document from the sidebar</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+
+        <button class="chip-btn" id="clearChatBtn" type="button" title="Clear chat history">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+          </svg>
+          <span class="chip-text">Clear chat</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chat area (flex:1, scrollable) -->
+    <div class="chat-area" id="chatArea" role="log" aria-live="polite" aria-label="Chat messages">
+
+      <!-- EMPTY / WELCOME STATE -->
+      <div class="empty-wrap" id="emptyState">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h2 id="emptyHeading">Ask anything about your document</h2>
+        <p id="emptySubtext">Upload a PDF from the sidebar, then ask any question. Answers are grounded in your document's actual content.</p>
+
+        <div class="suggested-label">Try asking</div>
+        <div class="suggested-grid">
+          <button class="suggested-card" data-question="Summarize the key highlights of this document">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-4-4L3 15.5"/>
+            </svg>
+            Summarize the key highlights
+          </button>
+          <button class="suggested-card" data-question="What are the most important points in this document?">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+            </svg>
+            What are the most important points?
+          </button>
+          <button class="suggested-card" data-question="What conclusions or recommendations are made?">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            Conclusions or recommendations?
+          </button>
+          <button class="suggested-card" data-question="List the main topics covered in this document">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            List the main topics covered
+          </button>
+        </div>
+      </div>
+
+      <!-- MESSAGES (populated state) -->
+      <div class="messages" id="messagesList" style="display:none;"></div>
+
+    </div><!-- /chat-area -->
+
+    <!-- Input bar -->
+    <div class="input-bar-wrap">
+      <div class="input-bar">
+        <textarea
+          id="questionInput"
+          rows="1"
+          placeholder="ASK A QUESTION ABOUT YOUR DOCUMENT…"
+          aria-label="Type your question here"
+        ></textarea>
+        <button class="send-btn" id="sendButton" type="button" aria-label="Send question">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-footer">Powered by FastAPI · ChromaDB · Gemini</div>
+    </div>
+
+  </div><!-- /main -->
+
+</div><!-- /app -->
+
+<script src="script.js?v=3"></script>
+</body>
+</html>

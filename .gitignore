@@ -1,0 +1,19 @@
+# Environment variables / API keys
+.env
+.env.*
+!.env.example
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+
+# Local ChromaDB database
+chroma_db/
+
+# VS Code settings
+.vscode/
